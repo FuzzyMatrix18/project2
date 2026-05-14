@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EXPLORA — World Discovery</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --cyan:#00f5d4;--cyan2:#00c9b0;--blue:#0066ff;--blue2:#003dc2;
+    --dark:#040b18;--dark2:#071326;--dark3:#0a1929;--dark4:#0d2137;
+    --glass:rgba(255,255,255,0.05);--glass2:rgba(255,255,255,0.08);
+    --border:rgba(0,245,212,0.2);--border2:rgba(0,245,212,0.4);
+    --text:#e8f4f8;--muted:rgba(232,244,248,0.55);
+    --font-head:'Orbitron',monospace;--font-body:'Space Grotesk',sans-serif;--font-mono:'JetBrains Mono',monospace;
+  }
+  html{scroll-behavior:smooth}
+  body{background:var(--dark);color:var(--text);font-family:var(--font-body);overflow-x:hidden;cursor:none}
+  @media (pointer: coarse), (hover: none){body{cursor:auto}}
+  @media (prefers-reduced-motion: reduce){
+    *{scroll-behavior:auto !important}
+    #cursor,#cursor-ring{display:none !important}
+    .dashboard-card,.avatar-card{animation:none !important}
+    .map-btn::before{transition:none !important}
+  }
+
+
+  /* CUSTOM CURSOR */
+  #cursor{position:fixed;width:12px;height:12px;border-radius:50%;background:var(--cyan);pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:transform .1s,width .2s,height .2s;mix-blend-mode:screen}
+  #cursor-ring{position:fixed;width:36px;height:36px;border-radius:50%;border:1.5px solid var(--cyan);pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:transform .15s,width .25s,height .25s,opacity .25s;opacity:.5}
+  body:has(a:hover) #cursor,body:has(button:hover) #cursor{width:20px;height:20px;background:var(--blue)}
+  body:has(a:hover) #cursor-ring,body:has(button:hover) #cursor-ring{width:52px;height:52px;opacity:.3}
+
+  /* THREE.JS CANVAS */
+  #bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+  /* NAV */
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:1.2rem 3rem;background:rgba(4,11,24,0.6);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:var(--font-head);font-size:1.5rem;font-weight:900;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.12em}
+  .nav-links{display:flex;align-items:center;gap:2rem}
+  .nav-links a{color:var(--muted);font-size:.85rem;font-weight:500;text-decoration:none;letter-spacing:.04em;transition:color .2s;cursor:none}
+  .nav-links a:hover{color:var(--cyan)}
+  .nav-links a:focus-visible,.map-btn:focus-visible,.btn-primary:focus-visible,.btn-ghost:focus-visible,.nav-cta:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:10px}
+
+  .nav-dd{position:relative}
+  .nav-dd{background:transparent;border:none;color:inherit;padding:0;margin:0;cursor:none}
+  .nav-dd span{display:flex;align-items:center;gap:.3rem;cursor:none}
+  .nav-cta{padding:.6rem 1.6rem;background:linear-gradient(135deg,var(--cyan),var(--blue2));border:none;border-radius:8px;color:#040b18;font-family:var(--font-body);font-weight:700;font-size:.85rem;letter-spacing:.04em;cursor:none;transition:all .2s;box-shadow:0 0 20px rgba(0,245,212,0.3)}
+
+  .nav-cta:hover{transform:translateY(-2px);box-shadow:0 0 35px rgba(0,245,212,0.5)}
+
+  /* HERO */
+  .hero{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;padding-top:80px}
+  .globe-container{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1}
+  #globe-canvas{width:100%;height:100%;opacity:.85}
+
+  /* DASHBOARD CARD */
+  .dashboard-card{position:absolute;left:clamp(1rem,5vw,4rem);top:50%;transform:translateY(-50%);z-index:10;width:300px;background:rgba(4,11,24,0.7);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;padding:1.5rem;animation:floatCard 4s ease-in-out infinite}
+  @keyframes floatCard{0%,100%{transform:translateY(-50%) translateY(0)}50%{transform:translateY(-50%) translateY(-10px)}}
+  .card-title{font-family:var(--font-head);font-size:1rem;font-weight:700;color:var(--text);letter-spacing:.08em;line-height:1.3;margin-bottom:1.2rem}
+  .stat-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+  .stat-label{font-size:.7rem;font-weight:600;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .stat-value{font-family:var(--font-head);font-size:1.6rem;font-weight:700;color:var(--cyan);margin-top:.15rem}
+  .stat-unit{font-size:.7rem;color:var(--muted);margin-left:.2rem}
+  .ring-wrap{position:relative;width:56px;height:56px;flex-shrink:0}
+  .ring-wrap svg{width:100%;height:100%}
+  .ring-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:.65rem;font-weight:600;color:var(--cyan)}
+  .divider{border:none;border-top:1px solid var(--border);margin:.5rem 0 1rem}
+  .map-btn{width:100%;padding:.85rem;background:linear-gradient(90deg,var(--cyan2),var(--blue2));border:none;border-radius:10px;font-family:var(--font-head);font-size:.75rem;font-weight:700;letter-spacing:.12em;color:#fff;cursor:none;position:relative;overflow:hidden;transition:all .3s}
+  .map-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transform:translateX(-100%);transition:transform .5s}
+  .map-btn:hover::before{transform:translateX(100%)}
+  .map-btn:hover{transform:scale(1.03);box-shadow:0 8px 30px rgba(0,245,212,0.4)}
+
+  /* AVATAR CARD */
+  .avatar-card{position:absolute;right:clamp(1rem,5vw,4rem);top:50%;transform:translateY(-46%);z-index:10;width:240px;background:rgba(4,11,24,0.7);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:16px;overflow:hidden;animation:floatCard2 4.5s ease-in-out infinite}
+  @keyframes floatCard2{0%,100%{transform:translateY(-46%) translateY(0)}50%{transform:translateY(-46%) translateY(-8px)}}
+  .avatar-img-area{background:linear-gradient(135deg,rgba(0,102,255,.25),rgba(0,245,212,.15));height:180px;display:flex;align-items:flex-end;justify-content:center;position:relative;overflow:hidden}
+  .avatar-3d{font-size:6rem;text-align:center;padding-bottom:.5rem;filter:drop-shadow(0 0 30px rgba(0,245,212,.4))}
+  .badge-star{position:absolute;bottom:1rem;left:1rem;width:36px;height:36px;background:linear-gradient(135deg,#FFD700,#FFA500);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;box-shadow:0 0 20px rgba(255,215,0,.5)}
+  .avatar-body{padding:1rem}
+  .feat-label{font-size:.65rem;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:.3rem}
+  .feat-title{font-family:var(--font-head);font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:.3rem}
+  .feat-desc{font-size:.75rem;color:var(--muted);line-height:1.4}
+
+  /* SECTION */
+  section{position:relative;z-index:2;padding:6rem 3rem}
+  .section-inner{max-width:1200px;margin:0 auto}
+  .section-tag{font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:.75rem}
+  .section-title{font-family:var(--font-head);font-size:clamp(1.8rem,4vw,3rem);font-weight:700;line-height:1.15;margin-bottom:1.5rem}
+  .section-title span{background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+  /* BENTO GRID */
+  .bento{display:grid;grid-template-columns:1.4fr 1fr 1fr;grid-template-rows:auto auto;gap:1.25rem;margin-top:3rem}
+  .bento-card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:1.75rem;transition:all .35s;overflow:hidden;position:relative}
+  .bento-card::after{content:'';position:absolute;inset:0;border-radius:16px;opacity:0;background:linear-gradient(135deg,rgba(0,245,212,.06),transparent);transition:opacity .3s}
+  .bento-card:hover{border-color:var(--border2);transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .bento-card:hover::after{opacity:1}
+  .bento-large{grid-row:1/3}
+  .bento-icon{font-size:2.5rem;margin-bottom:1rem;filter:drop-shadow(0 0 15px rgba(0,245,212,.4))}
+  .bento-title{font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:.5rem;color:var(--text)}
+  .bento-desc{font-size:.82rem;color:var(--muted);line-height:1.6}
+  .bento-badge{display:inline-block;padding:.25rem .75rem;background:rgba(0,245,212,.12);border:1px solid var(--border);border-radius:20px;font-size:.7rem;color:var(--cyan);font-weight:600;letter-spacing:.06em;margin-top:1rem}
+  .bento-large .bento-title{font-size:1.4rem}
+  .bento-mini-stats{display:flex;gap:1.5rem;margin-top:1.5rem}
+  .mini-stat-val{font-family:var(--font-head);font-size:1.4rem;color:var(--cyan);font-weight:700}
+  .mini-stat-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .fog-demo{margin-top:1.25rem;border-radius:10px;overflow:hidden;height:140px;position:relative;background:#071326}
+
+  /* MAP SECTION */
+  .map-section{background:var(--dark2)}
+  #main-map{width:100%;height:520px;border-radius:20px;overflow:hidden;border:1px solid var(--border);position:relative}
+  .map-overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(4,11,24,.7) 0%,transparent 60%);pointer-events:none;border-radius:20px}
+  .map-hud{position:absolute;top:1.5rem;left:1.5rem;z-index:10}
+  .hud-pill{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem 1rem;background:rgba(4,11,24,.8);border:1px solid var(--border);border-radius:20px;font-size:.75rem;color:var(--cyan);font-family:var(--font-mono);margin-bottom:.5rem}
+  .hud-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,245,212,.4)}50%{opacity:.7;box-shadow:0 0 0 8px rgba(0,245,212,0)}}
+
+  /* LEADERBOARD */
+  .lb-section{background:var(--dark3)}
+  .lb-table{width:100%;border-collapse:collapse;margin-top:2rem}
+  .lb-table th{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:.75rem 1rem;border-bottom:1px solid var(--border)}
+  .lb-table td{padding:.9rem 1rem;border-bottom:1px solid rgba(255,255,255,.04);font-size:.88rem}
+  .lb-table tr:hover td{background:var(--glass)}
+  .rank-1{color:#FFD700;font-family:var(--font-head);font-weight:700}
+  .rank-2{color:#C0C0C0;font-family:var(--font-head);font-weight:700}
+  .rank-3{color:#CD7F32;font-family:var(--font-head);font-weight:700}
+  .explorer-name{display:flex;align-items:center;gap:.75rem}
+  .explorer-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--cyan2),var(--blue2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;color:#040b18}
+  .progress-bar-wrap{background:rgba(255,255,255,.06);border-radius:4px;height:6px;width:120px;overflow:hidden}
+  .progress-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--cyan),var(--blue))}
+  .tag-city{font-size:.7rem;padding:.2rem .6rem;border-radius:12px;background:rgba(0,102,255,.15);color:#6699ff;border:1px solid rgba(0,102,255,.25)}
+
+  /* TECH STACK */
+  .tech-section{background:var(--dark)}
+  .tech-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:2.5rem}
+  .tech-card{background:var(--glass);border:1px solid var(--border);border-radius:14px;padding:1.5rem;transition:all .3s}
+  .tech-card:hover{border-color:var(--border2);box-shadow:0 10px 40px rgba(0,245,212,.1)}
+  .tech-label{font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:.5rem}
+  .tech-name{font-family:var(--font-head);font-size:1rem;font-weight:700;margin-bottom:.75rem}
+  .tech-stack-pills{display:flex;flex-wrap:wrap;gap:.4rem}
+  .tech-pill{padding:.2rem .65rem;border-radius:8px;background:rgba(0,245,212,.08);border:1px solid rgba(0,245,212,.15);font-size:.7rem;font-family:var(--font-mono);color:var(--cyan)}
+
+  /* STATS COUNTER */
+  .stats-band{background:linear-gradient(135deg,var(--dark4),var(--dark3));border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:3rem}
+  .stats-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:2rem;text-align:center}
+  .stat-big-val{font-family:var(--font-head);font-size:2.5rem;font-weight:900;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .stat-big-lbl{font-size:.78rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-top:.3rem}
+
+  /* CTA */
+  .cta-section{text-align:center;padding:8rem 3rem;position:relative;overflow:hidden}
+  .cta-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(0,245,212,.08) 0%,transparent 70%);pointer-events:none}
+  .cta-title{font-family:var(--font-head);font-size:clamp(2rem,5vw,3.5rem);font-weight:900;margin-bottom:1.5rem;line-height:1.1}
+  .cta-title span{background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .cta-sub{font-size:1.05rem;color:var(--muted);max-width:500px;margin:0 auto 2.5rem;line-height:1.7}
+  .cta-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+  .btn-primary{padding:.85rem 2.5rem;background:linear-gradient(135deg,var(--cyan),var(--blue2));border:none;border-radius:10px;font-family:var(--font-head);font-size:.82rem;font-weight:700;letter-spacing:.08em;color:#040b18;cursor:none;transition:all .3s;box-shadow:0 0 30px rgba(0,245,212,.25)}
+  .btn-primary:hover{transform:translateY(-3px);box-shadow:0 0 50px rgba(0,245,212,.4)}
+  .btn-ghost{padding:.85rem 2.5rem;background:transparent;border:1px solid var(--border2);border-radius:10px;font-family:var(--font-head);font-size:.82rem;font-weight:700;letter-spacing:.08em;color:var(--cyan);cursor:none;transition:all .3s}
+  .btn-ghost:hover{background:rgba(0,245,212,.07);transform:translateY(-3px)}
+
+  /* FOOTER */
+  footer{background:var(--dark2);border-top:1px solid var(--border);padding:2rem 3rem;display:flex;align-items:center;justify-content:space-between}
+  .footer-logo{font-family:var(--font-head);font-weight:900;font-size:1.1rem;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .footer-links{display:flex;gap:2rem}
+  .footer-links a{font-size:.8rem;color:var(--muted);text-decoration:none;cursor:none;transition:color .2s}
+  .footer-links a:hover{color:var(--cyan)}
+  .footer-copy{font-size:.75rem;color:var(--muted)}
+
+  /* SCROLL FX */
+  .reveal{opacity:0;transform:translateY(32px);transition:opacity .7s,transform .7s}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+
+  /* FOG CANVAS */
+  #fog-canvas{width:100%;height:100%;display:block}
+
+  /* LIVE BADGE */
+  .live-badge{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .9rem;border-radius:20px;background:rgba(0,245,212,.1);border:1px solid var(--border);font-size:.72rem;font-family:var(--font-mono);color:var(--cyan);margin-bottom:1.5rem}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:pulse 1.5s ease-in-out infinite}
+  @media(max-width:900px){
+    nav{padding:1rem 1.5rem}
+    .nav-links{display:none}
+    .bento{grid-template-columns:1fr;grid-template-rows:auto}
+    .bento-large{grid-row:auto}
+    .tech-grid{grid-template-columns:1fr}
+    .stats-grid{grid-template-columns:repeat(2,1fr)}
+    section{padding:4rem 1.5rem}
+    .dashboard-card,.avatar-card{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<canvas id="bg-canvas"></canvas>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">EXPLORA</div>
+  <div class="nav-links">
+    <button class="nav-dd" type="button" aria-label="Features menu"><span>Features ▾</span></button>
+    <a href="#leaderboard">Leaderboard</a>
+    <button class="nav-dd" type="button" aria-label="Resources menu"><span>Resources ▾</span></button>
+    <button class="nav-dd" type="button" aria-label="Download menu"><span>Download ▾</span></button>
+  </div>
+
+  <button class="nav-cta">Download</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="globe-container">
+    <canvas id="globe-canvas"></canvas>
+  </div>
+
+  <!-- Dashboard Card -->
+  <div class="dashboard-card">
+    <div class="card-title">EXPLORA WORLD<br>DISCOVERY</div>
+    <div class="bento-desc" style="margin-bottom:1rem;max-width:220px;color:var(--muted);line-height:1.5">
+      Live explorer insights powered by EXPLORA — track reveals, explore new zones, and unlock quests in real time.
+    </div>
+
+    <div class="stat-row">
+      <div>
+        <div class="stat-label">Global Explored:</div>
+        <div class="stat-value" id="pct-global">24.7%</div>
+      </div>
+      <div class="ring-wrap">
+        <svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="rgba(0,245,212,.15)" stroke-width="5"/><circle cx="28" cy="28" r="22" fill="none" stroke="url(#g1)" stroke-width="5" stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="104.1" transform="rotate(-90 28 28)"/><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#00f5d4"/><stop offset="100%" stop-color="#0066ff"/></linearGradient></defs></svg>
+        <div class="ring-text">24.7%</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div>
+        <div class="stat-label">NYC Revealed:</div>
+        <div class="stat-value">68%</div>
+      </div>
+      <div class="ring-wrap">
+        <svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" fill="none" stroke="rgba(0,245,212,.15)" stroke-width="5"/><circle cx="28" cy="28" r="22" fill="none" stroke="url(#g2)" stroke-width="5" stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="44.2" transform="rotate(-90 28 28)"/><defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#00f5d4"/><stop offset="100%" stop-color="#0066ff"/></linearGradient></defs></svg>
+        <div class="ring-text">68%</div>
+      </div>
+    </div>
+    <hr class="divider"/>
+    <div class="stat-label">Uncovered in Last 24h:</div>
+    <div class="stat-value" style="font-size:2rem">15 <span class="stat-unit">SQ KM</span></div>
+    <br/>
+    <button class="map-btn">MAP VIEW</button>
+  </div>
+
+  <!-- Avatar Card -->
+  <div class="avatar-card">
+    <div class="avatar-img-area">
+      <div class="avatar-3d">🧭</div>
+      <div class="badge-star">⭐</div>
+    </div>
+    <div class="avatar-body">
+      <div class="feat-label">Featured Adventure:</div>
+      <div class="feat-title">THE BRONX QUEST</div>
+      <div class="feat-desc">3D avatar and perspective shifts</div>
+    </div>
+  </div>
+</section>
+
+<!-- BENTO GRID -->
+<section id="features">
+  <div class="section-inner">
+    <div class="section-tag">Core Features</div>
+    <div class="section-title">Bento Grid</div>
+
+    <div class="bento">
+      <!-- Large -->
+      <div class="bento-card bento-large reveal">
+        <div class="bento-icon">🎮</div>
+        <div class="bento-title">Gamified Quests</div>
+        <div class="bento-desc">Unlock layered territory challenges as you physically walk, run, or cycle through new zones. Complete borough-wide objectives, earn XP, and unlock rare cosmetics tied to real-world coordinates.</div>
+        <div class="bento-mini-stats">
+          <div><div class="mini-stat-val">847</div><div class="mini-stat-lbl">Active Quests</div></div>
+          <div><div class="mini-stat-val">12k</div><div class="mini-stat-lbl">Completions</div></div>
+        </div>
+        <div class="fog-demo">
+          <canvas id="fog-canvas"></canvas>
+        </div>
+        <div class="bento-badge">LIVE SYSTEM</div>
+      </div>
+
+      <!-- Real-time Sync -->
+      <div class="bento-card reveal" style="transition-delay:.1s">
+        <div class="bento-icon">🔄</div>
+        <div class="bento-title">Real-time Sync</div>
+        <div class="bento-desc">WebSocket-powered territory reveals pushed instantly. Your fog clears in under 50ms globally via Socket.io with Redis caching.</div>
+        <div class="bento-badge">~47ms latency</div>
+      </div>
+
+      <!-- Social Feeds -->
+      <div class="bento-card reveal" style="transition-delay:.2s">
+        <div class="bento-icon">🌐</div>
+        <div class="bento-title">EXPLORA Network</div>
+        <div class="bento-desc">See what’s unfolding around you in real time. Follow nearby explorers, react to new reveals, and share field snapshots tied to exact coordinates.</div>
+        <div class="bento-badge">1.4k explorers online</div>
+      </div>
+
+
+      <!-- PostGIS -->
+      <div class="bento-card reveal" style="transition-delay:.3s">
+        <div class="bento-icon">🗄️</div>
+        <div class="bento-title">Spatial Intelligence</div>
+        <div class="bento-desc">PostgreSQL + PostGIS ST_Buffer and ST_Union track your precise exploration polygon at sub-meter accuracy.</div>
+        <div class="bento-badge">PostGIS Powered</div>
+      </div>
+
+      <!-- Anti-cheat -->
+      <div class="bento-card reveal" style="transition-delay:.4s">
+        <div class="bento-icon">🛡️</div>
+        <div class="bento-title">Anti-Cheat Engine</div>
+        <div class="bento-desc">JWT auth + rate-limited GPS pings prevent teleportation exploits. Velocity checks flag suspicious movements.</div>
+        <div class="bento-badge">Zero-trust GPS</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAND -->
+<div class="stats-band">
+  <div class="stats-grid">
+    <div class="reveal"><div class="stat-big-val" data-target="2.4">0</div><div class="stat-big-lbl">Million Explorers</div></div>
+    <div class="reveal" style="transition-delay:.1s"><div class="stat-big-val" data-target="847">0</div><div class="stat-big-lbl">Cities Mapped</div></div>
+    <div class="reveal" style="transition-delay:.2s"><div class="stat-big-val" data-target="94.7">0</div><div class="stat-big-lbl">Million SQ KM Revealed</div></div>
+    <div class="reveal" style="transition-delay:.3s"><div class="stat-big-val" data-target="12">0</div><div class="stat-big-lbl">Ms Avg Reveal Speed</div></div>
+  </div>
+</div>
+
+<!-- MAP SECTION -->
+<section class="map-section" id="map">
+  <div class="section-inner">
+    <div class="section-tag">Live Exploration Map</div>
+    <div class="section-title reveal">See the <span>World Unveil</span></div>
+    <div style="position:relative;margin-top:2rem" class="reveal">
+      <div id="main-map">
+        <canvas id="city-canvas" style="width:100%;height:100%;display:block;border-radius:20px"></canvas>
+        <div class="map-overlay"></div>
+        <div class="map-hud">
+          <div class="hud-pill">🛰️ GPS ACTIVE — 3 explorers nearby</div><br/>
+          <div class="hud-pill">📍 Manhattan, New York — 68% revealed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LEADERBOARD -->
+<section class="lb-section" id="leaderboard">
+  <div class="section-inner">
+    <div class="live-badge reveal"><span class="live-dot"></span>LIVE LEADERBOARD</div>
+    <div class="section-title reveal">Global <span>Explorers</span></div>
+    <table class="lb-table reveal">
+      <thead>
+        <tr>
+          <th>#</th><th>Explorer</th><th>City</th><th>Area Revealed</th><th>Progress</th><th>XP</th>
+        </tr>
+      </thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech-section" id="stack">
+  <div class="section-inner">
+    <div class="section-tag">Architecture</div>
+    <div class="section-title reveal">Built for <span>Scale</span></div>
+    <div class="tech-grid">
+      <div class="tech-card reveal">
+        <div class="tech-label">Frontend</div>
+        <div class="tech-name">Immersive HUD</div>
+        <div class="bento-desc" style="margin-bottom:1rem">React + Tailwind, Mapbox GL JS fog-of-war, Framer Motion glassmorphism, GSAP ScrollTrigger, Three.js mesh-gradient.</div>
+        <div class="tech-stack-pills">
+          <span class="tech-pill">React</span><span class="tech-pill">Mapbox GL</span><span class="tech-pill">Three.js</span><span class="tech-pill">GSAP</span><span class="tech-pill">Framer</span>
+        </div>
+      </div>
+      <div class="tech-card reveal" style="transition-delay:.1s">
+        <div class="tech-label">Backend</div>
+        <div class="tech-name">Spatial Intelligence</div>
+        <div class="bento-desc" style="margin-bottom:1rem">Node.js TypeScript + FastAPI. PostGIS ST_Buffer/ST_Union for revealed polygon management. Socket.io WebSockets.</div>
+        <div class="tech-stack-pills">
+          <span class="tech-pill">Node.js TS</span><span class="tech-pill">FastAPI</span><span class="tech-pill">PostgreSQL</span><span class="tech-pill">PostGIS</span><span class="tech-pill">Socket.io</span>
+        </div>
+      </div>
+      <div class="tech-card reveal" style="transition-delay:.2s">
+        <div class="tech-label">Infrastructure</div>
+        <div class="tech-name">Cloud Native</div>
+        <div class="bento-desc" style="margin-bottom:1rem">Redis for hot GPS coordinate caching. AWS Lambda / Cloud Run for bursty traffic. JWT + rate-limiting anti-cheat layer.</div>
+        <div class="tech-stack-pills">
+          <span class="tech-pill">Redis</span><span class="tech-pill">AWS Lambda</span><span class="tech-pill">Cloud Run</span><span class="tech-pill">JWT</span><span class="tech-pill">Docker</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <div class="live-badge reveal"><span class="live-dot"></span>BETA ACCESS OPEN</div>
+  <div class="cta-title reveal">Start <span>Exploring</span><br>Your World</div>
+  <div class="cta-sub reveal">Every step uncovers something new. Join 2.4 million explorers mapping Earth, one footstep at a time.</div>
+  <div class="cta-btns reveal">
+    <button class="btn-primary">Download App</button>
+    <button class="btn-ghost">View Map Demo</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">EXPLORA</div>
+  <div class="footer-links">
+    <a href="#">Privacy</a><a href="#">Terms</a><a href="#">API Docs</a><a href="#">Blog</a><a href="#">Contact</a>
+  </div>
+  <div class="footer-copy">© 2025 Explora Inc.</div>
+</footer>
+
+<!-- THREE.JS CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ─── CURSOR ───────────────────────────────────────────────────────
+const cur=document.getElementById('cursor'),ring=document.getElementById('cursor-ring');
+const prefersReducedMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isCoarsePointer=window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+let mx=0,my=0,rx=0,ry=0;
+if(cur && ring && !prefersReducedMotion && !isCoarsePointer){
+  document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px'});
+  function animRing(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;ring.style.left=rx+'px';ring.style.top=ry+'px';requestAnimationFrame(animRing)}
+  animRing();
+}
+
+
+// ─── THREE.JS BACKGROUND ──────────────────────────────────────────
+(function(){
+  const canvas=document.getElementById('bg-canvas');
+  if(!canvas)return;
+  const reduceMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const W=window.innerWidth,H=window.innerHeight;
+  canvas.width=W;canvas.height=H;
+  const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+  renderer.setSize(W,H);renderer.setPixelRatio(reduceMotion?1:Math.min(devicePixelRatio,2));
+
+  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,W/H,.1,100);
+  camera.position.z=3;
+  const geo=new THREE.PlaneGeometry(8,8,80,80);
+  const mat=new THREE.ShaderMaterial({
+    uniforms:{uTime:{value:0},uMouse:{value:new THREE.Vector2(.5,.5)}},
+    vertexShader:`
+      uniform float uTime;uniform vec2 uMouse;
+      varying vec2 vUv;varying float vElevation;
+      void main(){vUv=uv;
+        float e=sin(position.x*2.+uTime)*.08+cos(position.y*2.+uTime*.7)*.06;
+        e+=sin(distance(uv,uMouse)*12.-uTime*2.)*.04;
+        vElevation=e;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position.x,position.y,e,1.);}
+    `,
+    fragmentShader:`
+      uniform float uTime;varying vec2 vUv;varying float vElevation;
+      void main(){
+        float e=vElevation*5.+.5;
+        vec3 c1=vec3(.0,.96,.83);vec3 c2=vec3(.0,.4,1.);vec3 c3=vec3(.02,.07,.1);
+        vec3 col=mix(c3,mix(c2,c1,e),clamp(e*.8,0.,1.));
+        float grid=step(.97,fract(vUv.x*30.))+step(.97,fract(vUv.y*30.));
+        col+=grid*vec3(.0,.2,.15)*.15;
+        gl_FragColor=vec4(col,.18);}
+    `,
+    transparent:true,side:THREE.DoubleSide
+  });
+  const mesh=new THREE.Mesh(geo,mat);scene.add(mesh);
+  let mx2=.5,my2=.5;
+  document.addEventListener('mousemove',e=>{mx2=e.clientX/window.innerWidth;my2=1-e.clientY/window.innerHeight});
+  let t=0;
+  let rafId=null;
+  const shouldAnimate=()=>!(document.hidden||reduceMotion);
+  function animate(){
+    if(!shouldAnimate()){
+      rafId=requestAnimationFrame(animate);
+      return;
+    }
+    rafId=requestAnimationFrame(animate);
+
+    t+=.008;
+    mat.uniforms.uTime.value=t;
+    mat.uniforms.uMouse.value.x+=(mx2-mat.uniforms.uMouse.value.x)*.03;
+    mat.uniforms.uMouse.value.y+=(my2-mat.uniforms.uMouse.value.y)*.03;
+    renderer.render(scene,camera)
+  }
+  animate();
+
+  window.addEventListener('resize',()=>{const W2=window.innerWidth,H2=window.innerHeight;
+    camera.aspect=W2/H2;camera.updateProjectionMatrix();renderer.setSize(W2,H2);canvas.width=W2;canvas.height=H2});
+})();
+
+// ─── GLOBE CANVAS ─────────────────────────────────────────────────
+(function(){
+  const canvas=document.getElementById('globe-canvas');
+  const parent=canvas.parentElement;
+  function resize(){canvas.width=parent.offsetWidth;canvas.height=parent.offsetHeight}
+  resize();
+  const ctx=canvas.getContext('2d');
+  let t=0;
+  // NYC-like grid lines revealed
+  const lines=[];
+  for(let i=0;i<30;i++){
+    lines.push({x1:Math.random(),y1:Math.random(),x2:Math.random(),y2:Math.random(),opacity:Math.random()*.5+.1})
+  }
+  const reduceMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let lastFrame=0;
+  function draw(){
+    if(reduceMotion){ctx.clearRect(0,0,canvas.width,canvas.height);return;}
+
+    const W=canvas.width,H=canvas.height;
+    const cx=W/2,cy=H/2,r=Math.min(W,H)*.38;
+
+    ctx.clearRect(0,0,W,H);
+    // Globe base
+    const g=ctx.createRadialGradient(cx-r*.2,cy-r*.25,0,cx,cy,r);
+    g.addColorStop(0,'rgba(10,30,60,.9)');g.addColorStop(.6,'rgba(4,11,24,.85)');g.addColorStop(1,'rgba(0,0,0,.6)');
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    // Latitude lines
+    ctx.strokeStyle='rgba(0,245,212,.12)';ctx.lineWidth=.8;
+    for(let lat=-80;lat<=80;lat+=20){
+      const y2=cy+r*Math.sin(lat*Math.PI/180);
+      const rx2=r*Math.cos(lat*Math.PI/180);
+      ctx.beginPath();ctx.ellipse(cx,y2,rx2,.18*rx2,0,0,Math.PI*2);ctx.stroke();
+    }
+    // Longitude lines
+    for(let lon=0;lon<180;lon+=20){
+      const a=lon*Math.PI/180+t*.15;
+      ctx.beginPath();ctx.ellipse(cx,cy,r*Math.abs(Math.cos(a)),r,.15,0,Math.PI*2);ctx.stroke();
+    }
+    // NYC grid overlay (revealed area)
+    const gx=cx+r*.05,gy=cy-r*.1,gw=r*.55,gh=r*.65;
+    ctx.save();
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.clip();
+    // revealed glow
+    const rg=ctx.createRadialGradient(gx,gy,0,gx,gy,gw*.7);
+    rg.addColorStop(0,'rgba(0,245,212,.18)');rg.addColorStop(1,'rgba(0,245,212,0)');
+    ctx.fillStyle=rg;ctx.fillRect(gx-gw/2,gy-gh/2,gw,gh);
+    // Grid lines
+    ctx.strokeStyle='rgba(0,245,212,.55)';ctx.lineWidth=.8;
+    const gStep=gw/14;
+    for(let xi=0;xi<14;xi++){
+      for(let yi=0;yi<20;yi++){
+        const px=gx-gw/2+xi*gStep,py=gy-gh/2+yi*(gh/20);
+        if(Math.random()>.7){
+          ctx.fillStyle='rgba(0,245,212,.08)';
+          ctx.fillRect(px,py,gStep-.5,gh/20-.5);
+        }
+        ctx.strokeRect(px,py,gStep-.5,gh/20-.5);
+      }
+    }
+    ctx.restore();
+    // Globe rim
+    const rim=ctx.createRadialGradient(cx,cy,r*.85,cx,cy,r);
+    rim.addColorStop(0,'transparent');rim.addColorStop(1,'rgba(0,245,212,.35)');
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=rim;ctx.lineWidth=3;ctx.stroke();
+    // Atmosphere halo
+    const atm=ctx.createRadialGradient(cx,cy,r*.9,cx,cy,r*1.15);
+    atm.addColorStop(0,'rgba(0,245,212,.08)');atm.addColorStop(1,'transparent');
+    ctx.beginPath();ctx.arc(cx,cy,r*1.15,0,Math.PI*2);ctx.fillStyle=atm;ctx.fill();
+    // Rotate globe motion slightly by advancing time; increases perceived rotation.
+    t+=.004;requestAnimationFrame(draw);
+  }
+  draw();
+
+  window.addEventListener('resize',resize);
+})();
+
+// ─── FOG OF WAR DEMO ──────────────────────────────────────────────
+(function(){
+  const canvas=document.getElementById('fog-canvas');
+  if(!canvas)return;
+  const parent=canvas.parentElement;
+  canvas.width=parent.offsetWidth||280;canvas.height=140;
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  // Draw base map
+  function drawMap(){
+    ctx.fillStyle='#071326';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(0,245,212,.15)';ctx.lineWidth=.5;
+    for(let x=0;x<W;x+=14){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    for(let y=0;y<H;y+=14){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    // Some "streets"
+    ctx.strokeStyle='rgba(0,245,212,.4)';ctx.lineWidth=1.5;
+    [20,60,100,140,180,220].forEach(x=>{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()});
+    [35,70,105].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()});
+  }
+  const reduceMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let t=0;
+  // Simulate a walking path
+  function makePath(){
+
+    pts=[];
+    let x=W*.2,y=H*.5;
+    pts.push({x,y});
+    for(let i=0;i<40;i++){x+=4+(Math.random()*6);y+=Math.sin(i*.4)*(Math.random()*8-4);pts.push({x:Math.min(x,W*.9),y:Math.max(10,Math.min(H-10,y))})}
+  }
+  makePath();
+  let revealed=[];
+  function step(){
+    if(reduceMotion){drawMap();return;}
+    drawMap();
+
+    // Fog overlay
+    ctx.fillStyle='rgba(4,11,24,.82)';ctx.fillRect(0,0,W,H);
+    // Revealed circles
+    revealed.forEach(p=>{
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,22);
+      g.addColorStop(0,'rgba(0,245,212,.12)');g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.save();ctx.globalCompositeOperation='destination-out';
+      const g2=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,20);
+      g2.addColorStop(0,'rgba(0,0,0,.95)');g2.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g2;ctx.beginPath();ctx.arc(p.x,p.y,20,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    });
+    // Current position pulse
+    if(pts[t]){
+      const pp=pts[t];
+      ctx.beginPath();ctx.arc(pp.x,pp.y,4,0,Math.PI*2);ctx.fillStyle='var(--cyan)';ctx.fill();
+      ctx.beginPath();ctx.arc(pp.x,pp.y,12,0,Math.PI*2);ctx.strokeStyle='rgba(0,245,212,.4)';ctx.lineWidth=1.5;ctx.stroke();
+      revealed.push({x:pp.x,y:pp.y});
+      if(revealed.length>80)revealed.shift();
+    }
+    t=(t+1)%pts.length;
+    if(t===0){revealed=[];makePath();}
+    requestAnimationFrame(step);
+  }
+  step();
+})();
+
+// ─── CITY MAP CANVAS ──────────────────────────────────────────────
+(function(){
+  const canvas=document.getElementById('city-canvas');
+  const parent=canvas.parentElement;
+  function resize(){canvas.width=parent.offsetWidth;canvas.height=parent.offsetHeight}
+  resize();
+  const ctx=canvas.getContext('2d');
+  let t=0,explorerX=canvas.width*.45,explorerY=canvas.height*.5;
+  let revealedPts=[];
+  const reduceMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function draw(){
+    if(reduceMotion){
+      // Keep a single static frame for reduced-motion users
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+    const W=canvas.width,H=canvas.height;
+
+
+    // Dark city base
+    ctx.fillStyle='#040d1a';ctx.fillRect(0,0,W,H);
+    // Grid
+    ctx.strokeStyle='rgba(0,245,212,.08)';ctx.lineWidth=.5;
+    const step=32;
+    for(let x=0;x<W;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    for(let y=0;y<H;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    // Major streets
+    ctx.strokeStyle='rgba(0,245,212,.25)';ctx.lineWidth=1.5;
+    [W*.2,W*.4,W*.6,W*.8].forEach(x=>{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()});
+    [H*.25,H*.5,H*.75].forEach(y=>{ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()});
+    // Blocks
+    for(let bx=0;bx<W;bx+=step){for(let by=0;by<H;by+=step){
+      if(Math.random()<.0003){ctx.fillStyle='rgba(0,245,212,.04)';ctx.fillRect(bx+2,by+2,step-4,step-4)}
+    }}
+    // Fog of war overlay
+    ctx.fillStyle='rgba(4,11,24,.88)';ctx.fillRect(0,0,W,H);
+    // Reveal around explorer path
+    ctx.save();ctx.globalCompositeOperation='destination-out';
+    revealedPts.forEach((p,i)=>{
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,60);
+      const alpha=Math.min(1,i/10);
+      g.addColorStop(0,`rgba(0,0,0,${.92*alpha})`);g.addColorStop(.6,`rgba(0,0,0,${.5*alpha})`);g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,60,0,Math.PI*2);ctx.fill();
+    });
+    ctx.restore();
+    // Explorer marker
+    const px=explorerX,py=explorerY;
+    ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fillStyle='#00f5d4';ctx.fill();
+    const rp=(t*.04%1);
+    ctx.beginPath();ctx.arc(px,py,6+rp*30,0,Math.PI*2);ctx.strokeStyle=`rgba(0,245,212,${.7*(1-rp)})`;ctx.lineWidth=2;ctx.stroke();
+    // Move explorer
+    explorerX+=Math.sin(t*.023)*1.2;explorerY+=Math.cos(t*.018)*1.1;
+    explorerX=Math.max(60,Math.min(W-60,explorerX));explorerY=Math.max(60,Math.min(H-60,explorerY));
+    revealedPts.push({x:explorerX,y:explorerY});
+    if(revealedPts.length>200)revealedPts.shift();
+    if(!reduceMotion){
+      t++;
+      requestAnimationFrame(draw);
+    }
+  }
+  draw();
+
+  window.addEventListener('resize',resize);
+})();
+
+// ─── LEADERBOARD ─────────────────────────────────────────────────
+(function(){
+  const explorers=[
+    {rank:1,name:'NightWalker_K',city:'New York',area:'847 km²',pct:94,xp:'128,450'},
+    {rank:2,name:'UrbanPhantom',city:'Tokyo',area:'712 km²',pct:82,xp:'109,200'},
+    {rank:3,name:'FogBreaker88',city:'London',area:'601 km²',pct:79,xp:'98,730'},
+    {rank:4,name:'GeoSerpent',city:'Berlin',area:'540 km²',pct:71,xp:'85,100'},
+    {rank:5,name:'DawnTracer',city:'Paris',area:'488 km²',pct:65,xp:'72,800'},
+    {rank:6,name:'MapHunter_Z',city:'Sydney',area:'412 km²',pct:58,xp:'61,450'},
+    {rank:7,name:'CoordWitch',city:'Seoul',area:'378 km²',pct:51,xp:'54,200'},
+  ];
+  const rankClass=['rank-1','rank-2','rank-3'];
+  const initials=name=>name.slice(0,2).toUpperCase();
+  const tbody=document.getElementById('lb-body');
+  tbody.innerHTML=explorers.map((e,i)=>`
+    <tr>
+      <td class="${rankClass[i]||''}" style="font-family:var(--font-mono)">${e.rank<=3?['🥇','🥈','🥉'][e.rank-1]:e.rank}</td>
+      <td><div class="explorer-name"><div class="explorer-avatar">${initials(e.name)}</div>${e.name}</div></td>
+      <td><span class="tag-city">${e.city}</span></td>
+      <td style="font-family:var(--font-mono);color:var(--cyan)">${e.area}</td>
+      <td><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${e.pct}%"></div></div></td>
+      <td style="font-family:var(--font-mono);color:var(--muted)">${e.xp}</td>
+    </tr>
+  `).join('');
+  // Live update simulation
+  setInterval(()=>{
+    const rows=tbody.querySelectorAll('tr');
+    rows.forEach(row=>{
+      const bar=row.querySelector('.progress-bar-fill');
+      if(bar&&Math.random()>.7){
+        const w=parseInt(bar.style.width)+Math.floor(Math.random()*2);
+        bar.style.width=Math.min(100,w)+'%';
+      }
+    });
+  },2000);
+})();
+
+// ─── SCROLL REVEAL ────────────────────────────────────────────────
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible')}});
+},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+// ─── COUNTER ANIMATION ────────────────────────────────────────────
+const counterObs=new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      const el=entry.target;
+      const target=parseFloat(el.getAttribute('data-target'));
+      const isFloat=target%1!==0;
+      let current=0,steps=60;
+      const inc=target/steps;
+      const timer=setInterval(()=>{
+        current+=inc;
+        if(current>=target){current=target;clearInterval(timer)}
+        el.textContent=isFloat?current.toFixed(1):Math.floor(current).toLocaleString();
+      },25);
+      counterObs.unobserve(el);
+    }
+  });
+},{threshold:.3});
+document.querySelectorAll('[data-target]').forEach(el=>counterObs.observe(el));
+
+// ─── MAGNETIC CTA ─────────────────────────────────────────────────
+const enableMagnetic=!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+if(enableMagnetic){
+  document.querySelectorAll('.map-btn,.btn-primary,.btn-ghost,.nav-cta').forEach(btn=>{
+    btn.addEventListener('mousemove',e=>{
+      const rect=btn.getBoundingClientRect();
+      const dx=(e.clientX-rect.left-rect.width/2)*.22;
+      const dy=(e.clientY-rect.top-rect.height/2)*.22;
+      btn.style.transform=`translate(${dx}px,${dy}px)`;
+    });
+    btn.addEventListener('mouseleave',()=>btn.style.transform='');
+  });
+}
+
+
+// ─── GLOBAL EXPLORED COUNTER ─────────────────────────────────────
+let globalPct=24.7;
+setInterval(()=>{
+  globalPct+=Math.random()*.01;
+  const el=document.getElementById('pct-global');
+  if(el)el.textContent=globalPct.toFixed(1)+'%';
+},3000);
+</script>
+</body>
+</html>
